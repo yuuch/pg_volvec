@@ -1,0 +1,104 @@
+# pg_volvec
+
+`pg_volvec` is a PostgreSQL extension prototype that keeps PostgreSQL planning unchanged and offloads supported OLAP plan subtrees into a vectorized executor.
+
+This repository is an extracted `contrib/pg_volvec` subtree snapshot. In practice, it is meant to live under `contrib/pg_volvec` inside a PostgreSQL source checkout and be built from PostgreSQL's top-level build system.
+
+## Architecture
+
+- PostgreSQL still plans the query. `pg_volvec` hooks `ExecutorStart` / `ExecutorRun` / `ExecutorEnd` and intercepts only supported subtrees.
+- The execution engine is columnar and `DataChunk`-oriented. The main operator family today is `SeqScan -> optional qual -> HashJoin / Agg / Sort / Limit / SubqueryScan`.
+- Scan hot paths use tuple deform JIT to decode heap tuples directly into typed column arrays.
+- Expression evaluation lowers to a linear IR and, when supported, compiles to fused LLVM loops so intermediate vector temporaries do not need to be materialized.
+- TPC-H-style `NUMERIC(15,2)` values run as scaled `int64` in the hot path, with widened accumulation for aggregation.
+- Strings use prefix-aware refs and only fall back to owned storage when needed.
+
+In short: PostgreSQL planner on top, `pg_volvec` columnar executor underneath, with JIT on both tuple deform and expression evaluation.
+
+## Current Coverage
+
+Fully verified offloaded TPC-H queries:
+
+- Q1
+- Q3
+- Q4
+- Q5
+- Q6
+- Q7
+- Q8
+- Q9
+- Q10
+- Q11
+- Q12
+- Q13
+- Q14
+- Q15
+- Q16
+- Q18
+- Q19
+- Q20
+- Q22
+
+Offloaded with narrower validation:
+
+- Q2
+- Q17
+- Q21
+
+`Q21` is intentionally deprioritized for now. The dominant problem on that query shape looks more like PostgreSQL planner quality on many-table joins plus sublinks than a clear missing primitive inside the `pg_volvec` executor.
+
+## TPC-H Timing Snapshot
+
+The chart below uses the latest locally recorded timing per query on the developer machine, with parallel query disabled in the session.
+
+- `Q21` is intentionally omitted.
+- `TIMEOUT` is plotted as `180s`.
+- For most queries the data comes from the latest full-suite sweep on `2026-04-08`.
+- `Q6`, `Q14`, `Q15`, and `Q19` use newer `2026-04-09` alternating-run medians after the latest string / expr-JIT fixes.
+
+Quick read:
+
+- Across the 18 direct `OK vs OK` comparisons, `pg_volvec` is faster on all 18.
+- The geometric mean speedup on those direct comparisons is about `1.50x`.
+- `Q17` and `Q20` still hit the `180s` native cap locally, while `pg_volvec` finishes them.
+
+![TPC-H timing comparison](tpch_perf_snapshot.svg)
+
+The underlying snapshot is checked into [tpch_perf_snapshot.tsv](tpch_perf_snapshot.tsv).
+
+## Build And Install
+
+Use PostgreSQL's top-level Meson build from a PostgreSQL source checkout that contains this directory as `contrib/pg_volvec`.
+
+```bash
+meson setup build \
+  --prefix="$(pwd)/installed" \
+  -Dllvm=enabled \
+  --buildtype=debugoptimized
+
+meson compile -C build pg_volvec
+meson install -C build --only-changed
+```
+
+## Project Layout
+
+- `src/bridge/`: PostgreSQL hook integration and result handoff
+- `src/engine/executor.cpp`: vectorized plan initialization and operator implementations
+- `src/engine/expr.cpp`: expression lowering and interpreter
+- `src/engine/llvmjit_expr.cpp`: expression JIT
+- `src/engine/llvmjit_deform_datachunk.cpp`: tuple deform JIT
+
+## More Docs
+
+- [LOCAL_RUNBOOK.md](LOCAL_RUNBOOK.md): local build, install, startup, profiling, and benchmark workflow
+- [DESIGN.md](DESIGN.md): higher-level executor design
+- [llvmjit_expr.md](llvmjit_expr.md): expression JIT notes
+- [jit_deform_datachunk.md](jit_deform_datachunk.md): deform JIT notes
+- [vecSortDesign.md](vecSortDesign.md): current sort design
+- [page-wise-scan.md](page-wise-scan.md): page-wise scan notes
+- [ROADMAP.md](ROADMAP.md): longer-term direction
+- [TODO.md](TODO.md): near-term work items
+
+## License
+
+PostgreSQL License.
