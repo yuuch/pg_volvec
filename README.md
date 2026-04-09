@@ -1,6 +1,6 @@
 # pg_volvec
 
-`pg_volvec` is a PostgreSQL extension prototype that keeps PostgreSQL planning unchanged and offloads supported OLAP plan subtrees into a vectorized executor.
+`pg_volvec` is a PostgreSQL extension prototype that keeps PostgreSQL planning unchanged and offloads supported OLAP plan subtrees into a vectorized executor. The name `pg_volvec` stems from the original intention to build a **volcano model** vectorized executor. However, future iterations may evolve the architecture into a **pipeline model** rather than sticking to the volcano model.
 
 ## Architecture
 
@@ -12,39 +12,6 @@
 - Strings use prefix-aware refs and only fall back to owned storage when needed.
 
 In short: PostgreSQL planner on top, `pg_volvec` columnar executor underneath, with JIT on both tuple deform and expression evaluation.
-
-## Current Coverage
-
-Fully verified offloaded TPC-H queries:
-
-- Q1
-- Q3
-- Q4
-- Q5
-- Q6
-- Q7
-- Q8
-- Q9
-- Q10
-- Q11
-- Q12
-- Q13
-- Q14
-- Q15
-- Q16
-- Q18
-- Q19
-- Q20
-- Q22
-
-Offloaded with narrower validation:
-
-- Q2
-- Q17
-- Q21
-
-`Q21` is intentionally deprioritized for now. The dominant problem on that query shape looks more like PostgreSQL planner quality on many-table joins plus sublinks than a clear missing primitive inside the `pg_volvec` executor.
-
 ## TPC-H Timing Snapshot
 
 The chart below compares PostgreSQL, `pg_duckdb`, and `pg_volvec` on all 22 TPC-H queries using a single fair benchmark sweep on the developer machine.

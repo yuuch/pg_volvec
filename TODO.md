@@ -73,9 +73,9 @@
 
 ### 4. Scan Path Improvements
 
-- [ ] **Parallel Deform Workers** remain deferred for now.
-  - Fresh flame graphs show scan I/O, expression evaluation, and string-heavy join paths dominating far ahead of deform itself.
-  - The current `DataChunk` / `MemoryContext` / owned-string model also does not map cleanly to the older shared-`DataChunk` sketch in `parallel_deformer.md`.
+- [ ] Replace the old scan-only parallel idea with a real pipeline DAG plus morsel-driven scheduler.
+  - Parallel work should be scheduled as `pipeline x morsel` tasks with explicit pipeline-breaker dependencies.
+  - The first target should be `SeqScan/Filter/Project -> PartialAgg`, then grouped agg, then `HashJoin` build/probe, then sort/merge.
 - [ ] Add stronger `no-null` / fixed-layout deform specializations.
 - [ ] Explore page-level deform fusion instead of tuple-at-a-time JIT calls.
 - [ ] Decide how late materialization should interact with the current deform pipeline.
