@@ -1,5 +1,9 @@
 # pg_volvec
 
+<p align="center">
+  <img src="pg_volvec_logo.svg" alt="pg_volvec Logo" width="300" />
+</p>
+
 `pg_volvec` is a PostgreSQL extension prototype that keeps PostgreSQL planning unchanged and offloads supported OLAP plan subtrees into a vectorized executor. The name `pg_volvec` stems from the original intention to build a **volcano model** vectorized executor. However, future iterations may evolve the architecture into a **pipeline model** rather than sticking to the volcano model.
 
 ## Architecture
