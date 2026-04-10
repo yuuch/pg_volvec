@@ -33,17 +33,36 @@ The underlying snapshot is checked into [tpch_perf_snapshot.tsv](tpch_perf_snaps
 
 ## Build And Install
 
-Use PostgreSQL's top-level Meson build.
+`pg_volvec` is built using the **Meson** build system as an out-of-tree standalone PostgreSQL extension. It requires PostgreSQL 17+ (commit `f41ab515` or newer) with LLVM JIT enabled.
 
-```bash
-meson setup build \
-  --prefix="$(pwd)/installed" \
-  -Dllvm=enabled \
-  --buildtype=debugoptimized
+### Build Process
 
-meson compile -C build pg_volvec
-meson install -C build --only-changed
-```
+You only need to ensure `pg_config` (from your PostgreSQL installation) is in your system's `PATH`. The build system will automatically query `pg_config` to discover the correct include and installation directories.
+
+1. **Configure and Build**:
+   ```bash
+   # Ensure pg_config is in PATH (adjust path to your PostgreSQL installation)
+   export PATH="/path/to/your/pg/install/bin:$PATH"
+   
+   # For macOS with Homebrew LLVM, also ensure llvm-config is in PATH
+   # export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+   
+   meson setup build -Dbuildtype=release
+   ninja -C build
+   ```
+
+2. **Install**:
+   ```bash
+   # This installs the extension into the PostgreSQL directories
+   # found via pg_config (--pkglibdir and --sharedir/extension)
+   ninja -C build install
+   ```
+
+3. **Enable Extension**:
+   Start your PostgreSQL server, connect to it, and run:
+   ```sql
+   CREATE EXTENSION pg_volvec;
+   ```
 
 ## Project Layout
 

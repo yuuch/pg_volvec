@@ -1,0 +1,79 @@
+name: pg_volvec CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          meson \
+          ninja-build \
+          pkg-config \
+          libreadline-dev \
+          zlib1g-dev \
+          libssl-dev \
+          libxml2-dev \
+          libxslt1-dev \
+          libperl-dev \
+          python3-dev \
+          tcl-dev \
+          llvm-18-dev \
+          clang-18 \
+          libicu-dev \
+          bison \
+          flex \
+          git
+
+    - name: Checkout PostgreSQL
+      run: |
+        git clone https://github.com/postgres/postgres.git
+        cd postgres
+        git checkout f41ab51573a4c3d11f906b32a068182a1fd8596d
+
+    - name: Build and Install PostgreSQL
+      run: |
+        cd postgres
+        meson setup build \
+          --prefix=$GITHUB_WORKSPACE/pg_install \
+          -Dllvm=enabled \
+          -Dicu=enabled \
+          -Dreadline=enabled \
+          -Dbuildtype=release
+        ninja -C build install
+
+    - name: Build and Install pg_volvec
+      run: |
+        # Make pg_config available so Meson can query the installation paths
+        export PATH=$GITHUB_WORKSPACE/pg_install/bin:$PATH
+        
+        # Build out-of-tree standalone
+        meson setup build -Dbuildtype=release
+        
+        # This will install the .so and sql files directly into the
+        # PostgreSQL installation directory discovered via pg_config
+        ninja -C build install
+
+    - name: Run Tests
+      run: |
+        export PATH=$GITHUB_WORKSPACE/pg_install/bin:$PATH
+        
+        # Initialize a temporary database for testing
+        initdb -D test_db
+        pg_ctl -D test_db -l log start
+        
+        # Load extension and display a configuration parameter to verify it works
+        psql -d postgres -c "LOAD 'pg_volvec'; SHOW pg_volvec.enabled;"
+        
+        pg_ctl -D test_db stop
